@@ -1,0 +1,271 @@
+---
+title: "EcoCommons_MarxanWeb_connection"
+author: "EcoCommons"
+format: html
+editor: visual
+---
+
+## EcoCommons Outputs
+
+1.  Species records pulled from GBIF, ALA, EcoPlots, OBIS
+2.  Species distribution modelling output: **Probability maps**.
+
+## **Marxan MaPP Inputs**
+
+1.  Shapefile of planning area and units.
+2.  Shapefile of cost.
+3.  Shapefile and csv of biodiversity features.
+
+## EcoCommons connects with Marxan Showcase:
+
+1.  We get the QLD planning units from Marxan MaPP
+
+```{r}
+
+#| echo: false
+
+setwd("/Users/zhaoxiang/Documents/QCIF_doc/QLD_Koala_Marxan")
+
+library(sf)
+library(terra)
+library(ggplot2)
+library(ggspatial)
+
+QLD_Unit <- 
+QLD_Unit  <- st_read(QLD_Unit)
+
+
+# Get the number of rows
+n_rows <- nrow(QLD_Unit)
+
+# Plot the shapefile with no fill color and number of rows in the title
+ggplot(data = QLD_Unit) +
+  geom_sf(fill = NA, color = "gray") +
+  theme_minimal() +
+  ggtitle(paste("QLD Planning Unit", n_rows))
+
+```
+
+2.  I made a cost layer using the reciprocal of the distance to state-owned road as a surrogate of the cost.
+
+    The assumption is: the closer to the state owned road, the more expensive to purchase the unit.
+
+```{r}
+#| echo: false
+
+QLD_cost_road <- st_read("/Users/zhaoxiang/Documents/QCIF_doc/QLD_Koala_Marxan/QLD_cost_road.shp")
+
+# Plot the shapefile with continuous cost_road values
+ggplot(QLD_cost_road) +
+  geom_sf(aes(fill = cost_road)) +
+  scale_fill_continuous(name = "Cost",
+                        low = "lightblue", high = "red",
+                        labels = c("0 (Low cost)", "1 (High cost)"),
+                        breaks = c(0.01, 1)) +
+  theme_minimal() +
+  labs(title = "Cost: using distance to road as proxy")
+
+
+```
+
+3.  Biodiversity features. I used EcoCommons to produce three species' SDM to start with.
+
+    Species 1: koala
+
+    Species 2: brush tailed rock-wallaby
+
+    Species 3: beach stone curlew
+
+```{r}
+#| echo: false
+library(raster)
+
+# three species
+koala <- raster("/Users/zhaoxiang/Documents/QCIF_doc/QLD_Koala_Marxan/Koala_GLM.tif")
+beach_stone_curlew <- raster("/Users/zhaoxiang/Documents/QCIF_doc/QLD_Koala_Marxan/beach_stone_curlew_GLM.tif")
+brushtailed_rockwallaby <- raster("/Users/zhaoxiang/Documents/QCIF_doc/QLD_Koala_Marxan/brushtailed_rockwallaby_GLM.tif")
+
+# Transform the raster data to match the vector's CRS
+koala <- project(rast(koala), crs(vect(QLD_Unit)))
+beach_stone_curlew <- project(rast(beach_stone_curlew), crs(vect(QLD_Unit)))
+brushtailed_rockwallaby <- project(rast(brushtailed_rockwallaby), crs(vect(QLD_Unit)))
+
+# Now use the transformed raster with the vector data in the mask operation
+koala <- mask(koala, vect(QLD_Unit))
+beach_stone_curlew <- mask(beach_stone_curlew, vect(QLD_Unit))
+brushtailed_rockwallaby <- mask(brushtailed_rockwallaby, vect(QLD_Unit))
+
+# Plot the raster data
+extent_QLD <- ext(vect(QLD_Unit))
+
+# Set up a plotting layout with one row and three columns
+par(mfrow = c(1, 3),
+    mai = c(1, 1, 1, 1),  # Increase the inner margins: bottom, left, top, right
+    oma = c(0, 2, 0, 2))  # Increase the outer margins: bottom, left, top, right
+
+# Plot each raster with wrapped titles
+plot(koala, ext = extent_QLD, main = "Koala\nSDM")  # Wrap title with a newline character
+plot(beach_stone_curlew, ext = extent_QLD, main = "Beach Stone-curlew\nSDM")
+plot(brushtailed_rockwallaby, ext = extent_QLD, main = "Brushtailed Rock-wallaby\nSDM")
+
+```
+
+4.  We need to turn these SDMs to binary results (shapefies).
+
+```{r}
+
+#| echo: false
+
+library(terra)
+library(sf)
+
+
+# Define a function to process each species
+process_species <- function(raster_data, QLD_Unit, species_name, output_dir) {
+  # Extract mean raster value for each polygon in QLD_Unit
+  extracted_values <- extract(raster_data, vect(QLD_Unit), fun = mean, na.rm = TRUE)
+  
+  # Rename and update the feature column in QLD_Unit
+  names(QLD_Unit)[names(QLD_Unit) == "cost"] <- "feature"
+  QLD_Unit$feature <- extracted_values[,2]
+  
+  # Subset polygons where the feature (mean value) is >= 0.5
+  QLD_species <- subset(QLD_Unit, feature >= 0.5)
+
+  # Write the subset sf object to a shapefile
+  shapefile_base <- file.path(output_dir, species_name)
+  st_write(QLD_species, paste0(shapefile_base, ".shp"), delete_layer = TRUE)
+  
+  # List all the files that belong to the shapefile
+  shapefile_files <- list.files(output_dir, pattern = paste0(species_name, "\\."), full.names = TRUE)
+  shapefile_base_names <- basename(shapefile_files)
+
+  # Zip the shapefile, only including the base filenames
+  zipfile_path <- file.path(output_dir, paste0(species_name, ".zip"))
+  old_wd <- setwd(output_dir)  # Change the working directory to the output directory
+  zip(zipfile_path, shapefile_base_names)
+  setwd(old_wd)  # Change back to the original working directory
+
+  # Comment out the deletion step for now
+  # file.remove(shapefile_files)
+}
+
+# Set the output directory
+output_dir <- "/Users/zhaoxiang/Documents/QCIF_doc/QLD_Koala_Marxan/"
+
+# Apply the function to each species
+process_species(koala, QLD_Unit, "koala", output_dir)
+process_species(beach_stone_curlew, QLD_Unit, "beach_stone_curlew", output_dir)
+process_species(brushtailed_rockwallaby, QLD_Unit, "brushtailed_rockwallaby", output_dir)
+
+### We can also turn them into a csv format
+
+# Function to extract presence (1) and absence (0) from raster based on threshold (e.g., 0.5)
+extract_presence_absence <- function(raster_data, unit) {
+  extracted_values <- extract(raster_data, vect(unit), fun = mean, na.rm = TRUE)
+  presence_absence <- ifelse(extracted_values[, 2] >= 0.5, 1, 0)
+  return(presence_absence)
+}
+
+# Apply the function to each species raster
+QLD_Unit$koala_presence <- extract_presence_absence(koala, QLD_Unit)
+QLD_Unit$beach_stone_curlew_presence <- extract_presence_absence(beach_stone_curlew, QLD_Unit)
+QLD_Unit$brushtailed_rockwallaby_presence <- extract_presence_absence(brushtailed_rockwallaby, QLD_Unit)
+
+# Select relevant columns to create a presence-absence data frame
+presence_absence_df <- data.frame(
+  puid = QLD_Unit$puid,  # Assuming 'ID' is the unique identifier for the planning unit
+  Koala = QLD_Unit$koala_presence,
+  Beach_Stone_Curlew = QLD_Unit$beach_stone_curlew_presence,
+  Brushtailed_Rockwallaby = QLD_Unit$brushtailed_rockwallaby_presence
+)
+
+# Write the presence-absence data to a CSV file
+write.csv(presence_absence_df, file.path(output_dir, "presence_absence_species.csv"), row.names = FALSE)
+
+# Check the CSV output
+print(head(presence_absence_df))
+
+
+```
+
+5.  Plot species SDM binary shapefile outputs for double check
+
+```{r}
+library(sf)
+library(ggplot2)
+
+
+# Load the species shapefiles
+koala_sf <- st_read(file.path(output_dir, "koala.shp"))
+beach_stone_curlew_sf <- st_read(file.path(output_dir, "beach_stone_curlew.shp"))
+brushtailed_rockwallaby_sf <- st_read(file.path(output_dir, "brushtailed_rockwallaby.shp"))
+
+# Add an identifying column to each species dataset for the legend
+koala_sf$species <- "Koala"
+beach_stone_curlew_sf$species <- "Beach Stone-curlew"
+brushtailed_rockwallaby_sf$species <- "Brushtailed Rock-wallaby"
+
+# Combine the species shapefiles into one dataset
+combined_species_sf <- rbind(koala_sf, beach_stone_curlew_sf, brushtailed_rockwallaby_sf)
+
+# Plot the unit (base map) first and overlay the species habitats without borders
+combined_plot_with_unit <- ggplot() +
+  geom_sf(data = QLD_Unit, fill = NA, color = "grey") +  # Base map (QLD Unit)
+  geom_sf(data = combined_species_sf, aes(fill = species), color = NA, alpha = 0.6) +  # No borders for species
+  scale_fill_manual(values = c("blue", "green", "coral")) +  # Colors for each species
+  theme_minimal() +
+  labs(title = "Species Habitats within QLD Unit", subtitle = "Koala, Beach Stone-curlew, Brushtailed Rock-wallaby") +
+  theme(legend.title = element_blank())
+
+# Display the plot
+print(combined_plot_with_unit)
+
+```
+
+```{r}
+library(sf)
+library(terra)
+
+# Function to extract presence (1) and absence (0) from raster based on threshold (e.g., 0.5)
+extract_presence_absence <- function(raster_data, unit) {
+  extracted_values <- extract(raster_data, vect(unit), fun = mean, na.rm = TRUE)
+  presence_absence <- ifelse(extracted_values[, 2] >= 0.5, 1, 0)
+  return(presence_absence)
+}
+
+# Apply the function to each species raster and add to the QLD_Unit shapefile
+QLD_Unit$koala_presence <- extract_presence_absence(koala, QLD_Unit)
+QLD_Unit$beach_stone_curlew_presence <- extract_presence_absence(beach_stone_curlew, QLD_Unit)
+QLD_Unit$brushtailed_rockwallaby_presence <- extract_presence_absence(brushtailed_rockwallaby, QLD_Unit)
+
+# Save the updated QLD_Unit as a new shapefile
+output_shapefile <- file.path(output_dir, "QLD_Unit_with_species_presence.shp")
+st_write(QLD_Unit, output_shapefile, delete_layer = TRUE)
+
+# Verify the presence/absence columns
+print(head(QLD_Unit))
+
+```
+
+## Marxan Four scenarios solutions:
+
+Our SDMs input to Marxan MaPP:
+
+![](images/Screenshot 2024-09-07 at 9.36.12 PM.png)
+
+Scenario 1: No SDMs, No Costs
+
+![](images/clipboard-1794983472.png)
+
+Scenario 2: SDMS, No Costs
+
+![](images/clipboard-1683320824.png)
+
+Scenario 3: Costs, No SDMs
+
+![](images/clipboard-1642299349.png)
+
+Scenario 4: SDMs + Costs
+
+![](images/clipboard-3046106326.png)
