@@ -1,20 +1,28 @@
 ---
 title: "EcoCommons_MarxanWeb_connection"
-author: "EcoCommons"
+author: "Zhao Xiang, EcoCommons"
 format: html
+html:
+embed-resources: true
 editor: visual
 ---
+
+## Introduction
+
+Using the Species distribution modeling techniques provided by the EcoCommons Platform (www.ecocommons.org.au), we produced probability distribution maps for the three Queensland endangered species: koala, brush tailed rock-wallaby, and beach stone curlew.
+
+Then we adjusted the probability distribution maps of these three species with the planning units shapefile prepared by the Marxan MaPP, and ran four planning scenarios with a target of expanding the coverage of protected areas in QLD to 30%.
 
 ## EcoCommons Outputs
 
 1.  Species records pulled from GBIF, ALA, EcoPlots, OBIS
-2.  Species distribution modelling output: **Probability maps**.
+2.  Species distribution modelling output: [Species distribution Probability maps]{style="color:red;"} (This is the input tested in this project).
 
 ## **Marxan MaPP Inputs**
 
 1.  Shapefile of planning area and units.
 2.  Shapefile of cost.
-3.  Shapefile and csv of biodiversity features.
+3.  Shapefile and csv of biodiversity features [(Where EcoCommons can help!)]{style="color:red;"}.
 
 ## EcoCommons connects with Marxan Showcase:
 
@@ -29,7 +37,10 @@ library(terra)
 library(ggplot2)
 library(ggspatial)
 
+# We get the planning units shapefile via Marxan MaPP
+
 QLD_Unit <- "/Users/zhaoxiang/Documents/tmp/ecocommons-marxan-integration-poc/ecocommons-marxan-integration-poc/QLD_Koala_Marxan/QLD_Unit/cost-surface-template_dbfd87df-99bc-4229-a607-04e632a67fda_20240828T015655.shp"
+
 QLD_Unit  <- st_read(QLD_Unit)
 
 
