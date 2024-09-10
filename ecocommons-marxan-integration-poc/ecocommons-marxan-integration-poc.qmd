@@ -29,9 +29,10 @@ Then we adjusted the probability distribution maps of these three species with t
 1.  We get the QLD planning units from Marxan MaPP
 
 ```{r}
-
+# TODO: #2 Please add a label to each code chunk
 #| echo: false
 
+#TODO: #1 Please use the renv package to create a replicable virutal environment
 library(sf)
 library(terra)
 library(ggplot2)
@@ -39,7 +40,8 @@ library(ggspatial)
 
 # We get the planning units shapefile via Marxan MaPP
 
-QLD_Unit <- "/Users/zhaoxiang/Documents/tmp/ecocommons-marxan-integration-poc/ecocommons-marxan-integration-poc/QLD_Koala_Marxan/QLD_Unit/cost-surface-template_dbfd87df-99bc-4229-a607-04e632a67fda_20240828T015655.shp"
+QLD_Unit <- "/Users/zhaoxiang/Documents/tmp/ecocommons-marxan-integration-poc/ecocommons-marxan-integration-poc/QLD_Koala_Marxan/QLD_Unit/cost-surface-template_dbfd87df-99bc-4229-a607-04e632a67fda_20240828T015655.shp" 
+#TODO: #3 Please use relative path if sharing these datasets in GitHub 
 
 QLD_Unit  <- st_read(QLD_Unit)
 
@@ -87,7 +89,7 @@ ggplot(QLD_cost_road) +
 
 ```{r}
 #| echo: false
-library(raster)
+library(raster) #TODO: #4 Please add all package installation at the very start
 
 # three species
 koala <- raster("/Users/zhaoxiang/Documents/QCIF_doc/QLD_Koala_Marxan/Koala_GLM.tif")
@@ -113,7 +115,7 @@ par(mfrow = c(1, 3),
     oma = c(0, 2, 0, 2))  # Increase the outer margins: bottom, left, top, right
 
 # Plot each raster with wrapped titles
-plot(koala, ext = extent_QLD, main = "Koala\nSDM")  # Wrap title with a newline character
+plot(koala, ext = extent_QLD, main = "Koala\nSDM")  # Wrap title with a newline character #TODO: #5 Use ggplot instead of plot
 plot(beach_stone_curlew, ext = extent_QLD, main = "Beach Stone-curlew\nSDM")
 plot(brushtailed_rockwallaby, ext = extent_QLD, main = "Brushtailed Rock-wallaby\nSDM")
 
