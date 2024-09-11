@@ -9,9 +9,9 @@ editor: visual
 
 # EcoCommons -\> Marxan MaPP connection
 
-Author: "Author Name"
+Author: Zhao Xiang, EcoCommons
 
-Date: "2024-09-10"
+Date: 2024-09-10
 
 ## Introduction
 
@@ -34,15 +34,25 @@ Then we adjusted the probability distribution maps of these three species with t
 
 **Make sure you are in the directory you want**
 
-```{r}
+```{r start}
 
 getwd()
 
 ```
 
+Create a virtual environment to install and load all essential packages
+
+```{r init-renv, message=FALSE}
+# install.packages("renv") # install this package if you have not.
+renv::init()
+
+```
+
 **Install and load essential packages**
 
-```{r, message=FALSE}
+```{r Pack-install, message=FALSE}
+
+install.packages("sf")
 
 # First specify the packages of interest
 packages = c("sf", "terra", "ggplot2", "ggspatial", "raster", "dplyr")
@@ -58,11 +68,16 @@ package.check <- lapply(
   }
  )
 
+# You might need to link your renv to proj
+Sys.setenv(PROJ_LIB = "/usr/local/Cellar/proj/9.4.1/share/proj") # Update path if different
+
+renv::snapshot()
+
 ```
 
 **1. We get the QLD planning units from Marxan MaPP**
 
-```{r, message=FALSE, results='hide'}
+```{r Plan-units, message=FALSE, results='hide'}
 
 QLD_Unit <- "qld_3species_Marxan/QLD_plannningunits/cost-surface-template_dbfd87df-99bc-4229-a607-04e632a67fda_20240828T015655.shp"  #This cost-surface-template was prepared by the Marxan Mapp with a resolution of 189 Km2, which is the highest resolution Marxan Mapp can give at this scale.
 
@@ -91,7 +106,7 @@ ggplot(data = QLD_Unit) +
 
 The assumption is: the closer to the state owned road, the more expensive to purchase the unit.
 
-```{r, message=FALSE, results='hide'}
+```{r cost, message=FALSE, results='hide'}
 
 QLD_cost_road <- st_read("qld_3species_Marxan/QLD_Cost/QLD_cost_road.shp")
 
@@ -116,7 +131,7 @@ ggplot(QLD_cost_road) +
 
 -   **Species 3: beach stone curlew**
 
-```{r, warning = FALSE, message=FALSE, results='hide'}
+```{r ECR-sdms-raster, warning = FALSE, message=FALSE, results='hide'}
 
 # Define the folder path where the rasters are stored
 folder_path <- "qld_3species_Marxan/QLD_feature/"
@@ -174,7 +189,7 @@ ggplot(combined_raster_df, aes(x = x, y = y, fill = value)) +  # Use the correct
 
 **4. We need to turn these SDMs to binary results (shapefies).**
 
-```{r, warning = FALSE, message=FALSE, results='hide'}
+```{r ECR-sdm-shp, warning = FALSE, message=FALSE, results='hide'}
 
 
  # Define a function to process each species
@@ -223,7 +238,7 @@ for (i in seq_along(raster_list)) {
 
 **5. Plot species SDM binary shapefile outputs for double check**
 
-```{r, warning = FALSE, message=FALSE, results='hide'}
+```{r ECR-shp-plot, warning = FALSE, message=FALSE, results='hide'}
 
 # List all the shapefiles in the directory (assuming each species has its own shapefile)
 species_files <- list.files(output_dir, pattern = "\\.shp$", full.names = TRUE)
@@ -256,9 +271,9 @@ print(combined_plot_with_unit)
 
 ```
 
-**6. Plot species SDM binary shapefile outputs for double check**
+**6. We can also make a species presence and absence csv table.**
 
-```{r, warning = FALSE, message=FALSE}
+```{r ECR-sdm-csv, warning = FALSE, message=FALSE}
 
 # Function to extract presence (1) and absence (0) from raster based on a threshold (e.g., 0.5)
 
