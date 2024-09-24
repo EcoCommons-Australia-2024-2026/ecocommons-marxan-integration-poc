@@ -2,16 +2,16 @@
 title: "EcoCommons Marxan MaPP connection"
 format: html
 html:
-css: html_template/ecocommons/ecocommons.css  # Path to your custom CSS
-embed-resources: true
+css: /Users/zhaoxiang/Documents/tmp/ecocommons-marxan/ecocommons-marxan-integration-poc/html_template/ecocommons/ecocommons.css  # Path to your custom CSS
 editor: visual
+runtime: shiny
 ---
 
 # EcoCommons -\> Marxan MaPP connection
 
 Author: Zhao Xiang, EcoCommons
 
-Date: 2024-09-10
+Date: 2024-09-24
 
 ## Introduction
 
@@ -51,7 +51,6 @@ renv::init()
 **Install and load essential packages**
 
 ```{r Pack-install, message=FALSE}
-
 install.packages("sf")
 
 # First specify the packages of interest
@@ -79,7 +78,7 @@ renv::snapshot()
 
 ```{r Plan-units, message=FALSE, results='hide'}
 
-QLD_Unit <- "qld_3species_Marxan/QLD_plannningunits/cost-surface-template_dbfd87df-99bc-4229-a607-04e632a67fda_20240828T015655.shp"  #This cost-surface-template was prepared by the Marxan Mapp with a resolution of 189 Km2, which is the highest resolution Marxan Mapp can give at this scale.
+QLD_Unit <- "qld_3species_Marxan/QLD_plannningunits/cost-surface-template.shp"  #This cost-surface-template was prepared by the Marxan Mapp with a resolution of 189 Km2, which is the highest resolution Marxan Mapp can give at this scale.
 
 QLD_Unit  <- st_read(QLD_Unit)
 
@@ -142,7 +141,6 @@ raster_files <- list.files(path = folder_path, pattern = "\\.tif$", full.names =
 # Extract the species names from the file names (removing the folder path and .tif extension)
 species_names <- tools::file_path_sans_ext(basename(raster_files))
 
-
 # Read all raster files in one go using lapply
 raster_list <- lapply(raster_files, rast)  # Use rast() from terra for reading rasters
 
@@ -189,51 +187,212 @@ ggplot(combined_raster_df, aes(x = x, y = y, fill = value)) +  # Use the correct
 
 **4. We need to turn these SDMs to binary results (shapefies).**
 
-```{r ECR-sdm-shp, warning = FALSE, message=FALSE, results='hide'}
+```{r}
+# Load necessary libraries
+library(shiny)
+library(ggplot2)
+library(terra)   # For handling rasters
+library(sf)      # For handling shapefiles
+library(dplyr)
 
+# Define the folder paths where the rasters and CSV files are stored
+folder_path_rasters <- "qld_3species_Marxan/QLD_feature/"
+folder_path_csvs <- "qld_3species_Marxan/model_evaluation/"
+output_dir <- "qld_3species_Marxan/QLD_feature/Marxan_feature_input/"
 
- # Define a function to process each species
- process_species <- function(raster_data, QLD_Unit, species_name, output_dir) {
-  # Check the input raster and vector objects
-  print(raster_data)  # Check raster structure
-  print(QLD_Unit)     # Check vector structure
+# Get a list of all .tif files and CSV files in the folder
+raster_files <- list.files(path = folder_path_rasters, pattern = "\\.tif$", full.names = TRUE)
+csv_files <- list.files(path = folder_path_csvs, pattern = "\\.csv$", full.names = TRUE)
 
+# Extract the species names from the file names (removing the folder path and .tif/.csv extension)
+species_names <- tools::file_path_sans_ext(basename(raster_files))
+
+# Read all raster files in one go using lapply
+raster_list <- lapply(raster_files, rast)  # Use rast() from terra for reading rasters
+
+# Transform the raster CRS to match the vector CRS and apply masking in one step
+raster_list <- lapply(raster_list, function(r) {
+  r_transformed <- project(r, crs(vect(QLD_Unit)))
+  mask(r_transformed, vect(QLD_Unit))
+})
+
+# Prepare a named list of rasters
+species_rasters <- setNames(raster_list, species_names)
+species_csvs <- setNames(csv_files, species_names)
+
+# Define UI for the application
+ui <- fluidPage(
+  titlePanel("Interactive TSS-based Feature Subsetting for Multiple Species"),
+  
+  # Use a loop to create a row for each species
+  lapply(species_names, function(species) {
+    fluidRow(
+      column(3, 
+             h4(paste("Species:", species)),
+             sliderInput(paste0("tss_value_", species), 
+                         "Select TSS Value:", 
+                         min = 0, max = 1, value = 0.5, step = 0.01),  # Placeholder, updated dynamically
+             actionButton(paste0("run_analysis_", species), "Run Species Analysis"),
+             br(),
+             textOutput(paste0("tpr_tnr_", species))  # To display the TPR and TNR values dynamically
+      ),
+      
+      # Column for Threshold plot (Fixed width)
+      column(4, 
+             plotOutput(paste0("plot_", species), width = "600px")  # Set the width of the threshold plot
+      ),
+      
+      # Column for Species Distribution plot
+      column(5, 
+             plotOutput(paste0("species_plot_", species))  # Output to show the species distribution map
+      )
+    )
+  })
+)
+
+# Define server logic
+server <- function(input, output, session) {
+  
+  # Reactive function to get the selected species raster
+  selected_raster <- function(species) {
+    species_rasters[[species]]  # Load the raster corresponding to the species
+  }
+  
+  # Reactive function to load species-specific CSV data and calculate TSS
+  species_eval_data <- function(species) {
+    csv_path <- species_csvs[[species]]  # Get the CSV file path for the species
+    
+    # Check if the CSV exists and has content
+    if (!file.exists(csv_path)) {
+      showNotification(paste("CSV file for", species, "not found!"), type = "error")
+      return(NULL)
+    }
+    
+    eval_data <- read.csv(csv_path)
+    
+    # Ensure the necessary columns are present
+    if (!all(c("tpr", "tnr", "tpv") %in% names(eval_data))) {
+      showNotification(paste("Required columns missing in CSV for", species), type = "error")
+      return(NULL)
+    }
+    
+    # Check if data is missing or empty
+    if (nrow(eval_data) == 0) {
+      showNotification(paste("No data found in CSV for", species), type = "error")
+      return(NULL)
+    }
+    
+    # Calculate TSS (True Skill Statistic) and round to 3 decimal places
+    eval_data$tss <- round(eval_data$tpr + eval_data$tnr - 1, 3)
+    
+    return(eval_data)
+  }
+  
+  # Dynamic server logic for each species
+  lapply(species_names, function(species) {
+    
+    # Load the species evaluation data
+    eval_data <- species_eval_data(species)
+    
+    if (!is.null(eval_data)) {
+      # Determine min, max, and initial TSS values based on the real range
+      min_tss <- min(eval_data$tss, na.rm = TRUE)
+      max_tss <- max(eval_data$tss, na.rm = TRUE)
+      
+      # Update the slider dynamically for the species, starting at max TSS
+      updateSliderInput(session, paste0("tss_value_", species), 
+                        min = min_tss, 
+                        max = max_tss, 
+                        value = max_tss,  # Start at the maximum TSS
+                        step = 0.01)
+    }
+    
+    # Observe changes in the slider and update the TSS value for the species
+    observeEvent(input[[paste0("tss_value_", species)]], {
+      if (!is.null(eval_data)) {
+        row <- which.min(abs(eval_data$tss - input[[paste0("tss_value_", species)]]))
+        
+        tpr <- eval_data$tpr[row]
+        tnr <- eval_data$tnr[row]
+        
+        # Display TPR and TNR dynamically
+        output[[paste0("tpr_tnr_", species)]] <- renderText({
+          paste0("TPR (Sensitivity): ", round(tpr, 3), 
+                 ", TNR (Specificity): ", round(tnr, 3))
+        })
+      }
+    })
+    
+    # Render the Threshold plot for each species
+    output[[paste0("plot_", species)]] <- renderPlot({
+      if (is.null(eval_data)) {
+        return(NULL)  # Skip rendering if data is not available
+      }
+      
+      ggplot(eval_data, aes(x = tpv)) +
+        geom_line(aes(y = tpr, colour = "True Positive Rate (TPR, Sensitivity)"), size = 1) +   # TPR line
+        geom_line(aes(y = tnr, colour = "True Negative Rate (TNR, Specificity)"), size = 1) +  # TNR line
+        geom_line(aes(y = tss, colour = "True Skill Statistic (TSS)"), size = 1) +             # TSS line
+        # Add a vertical line to indicate the selected TSS threshold's TPV
+        geom_vline(xintercept = eval_data$tpv[which.min(abs(eval_data$tss - input[[paste0("tss_value_", species)]]))],
+                   linetype = "dotted", color = "red", size = 1) +
+        labs(title = paste("Sensitivity, Specificity, and TSS for", species),
+             x = "Threshold Probability Value",    # X-axis title
+             y = "Value") +                        # Y-axis title
+        scale_colour_manual(values = c("True Positive Rate (TPR, Sensitivity)" = "blue", 
+                                       "True Negative Rate (TNR, Specificity)" = "green", 
+                                       "True Skill Statistic (TSS)" = "red"),
+                            name = "Metric",       # Legend title
+                            labels = c("True Positive Rate (TPR, Sensitivity)", 
+                                       "True Negative Rate (TNR, Specificity)", 
+                                       "True Skill Statistic (TSS)")) +
+        theme_minimal()
+    })
+    
+    # Render the Species Distribution plot when the "Run Species Analysis" button is clicked
+    observeEvent(input[[paste0("run_analysis_", species)]], {
+      species_shp <- process_species(selected_raster(species), QLD_Unit, species, output_dir, input[[paste0("tss_value_", species)]])
+      
+      output[[paste0("species_plot_", species)]] <- renderPlot({
+        ggplot() +
+          geom_sf(data = QLD_Unit, fill = NA, color = "grey") +  # Base map (planning units)
+          geom_sf(data = species_shp, aes(fill = feature), color = NA) +  # Species distribution
+          scale_fill_viridis_c(option = "plasma") +  # Adjust the color scale if needed
+          labs(title = paste("Species Distribution for", species),
+                              x = "Longitude", y = "Latitude") +
+          theme_minimal()
+      })
+    })
+  })
+}
+
+# Function to process each species using the selected TSS threshold
+process_species <- function(raster_data, planning_unit, species_name, output_dir, tss_threshold) {
+  
   # Reproject raster to match vector CRS
-  raster_data_transformed <- project(raster_data, crs(vect(QLD_Unit)))
-  print(raster_data_transformed)  # Check the transformed raster
+  raster_data_transformed <- project(raster_data, crs(vect(planning_unit)))
 
   # Extract mean raster values for each polygon
-  extracted_values <- extract(raster_data_transformed, vect(QLD_Unit), fun = mean, na.rm = TRUE)
-  print(extracted_values)  # Debugging: check extracted values
+  extracted_values <- extract(raster_data_transformed, vect(planning_unit), fun = mean, na.rm = TRUE)
 
-  # Update the QLD_Unit feature column
-  names(QLD_Unit)[names(QLD_Unit) == "cost"] <- "feature"
-  QLD_Unit$feature <- extracted_values[, 2]
+  # Update the planning_unit feature column
+  names(planning_unit)[names(planning_unit) == "cost"] <- "feature"
+  planning_unit$feature <- extracted_values[, 2]
 
-  # Subset the polygons where the feature value is >= 0.5
-  QLD_species <- subset(QLD_Unit, feature >= 0.5)
-  print(QLD_species)  # Check the subset for debugging
-
+  # Subset the polygons where the feature value is greater than or equal to the selected TSS threshold
+  QLD_species <- subset(planning_unit, feature >= tss_threshold)
+  
   # Write the subset to a shapefile
   shapefile_base <- file.path(output_dir, species_name)
   st_write(QLD_species, paste0(shapefile_base, ".shp"), delete_layer = TRUE)
-
-  # Zip the shapefile components
-  shapefile_files <- list.files(output_dir, pattern = paste0(species_name, "\\."), full.names = TRUE)
-  shapefile_base_names <- basename(shapefile_files)
-  zipfile_path <- file.path(output_dir, paste0(species_name, ".zip"))
-  old_wd <- setwd(output_dir)
-  zip(zipfile_path, shapefile_base_names)
-  setwd(old_wd)
+  
+  # Return the species shapefile for plotting
+  return(QLD_species)
 }
 
-# Set the output directory
-output_dir <- "/Users/zhaoxiang/Documents/tmp/ecocommons-marxan/ecocommons-marxan-integration-poc/qld_3species_Marxan/QLD_feature/Marxan_feature_input"  #change these to the absolute path to the folder you would like to save your Marxan MaPP Feature input
+# Run the application 
+shinyApp(ui = ui, server = server)
 
-# Apply the function to each species in raster_list
-for (i in seq_along(raster_list)) {
-  process_species(raster_list[[i]], QLD_Unit, species_names[i], output_dir)
-}
 ```
 
 **5. Plot species SDM binary shapefile outputs for double check**
@@ -242,6 +401,8 @@ for (i in seq_along(raster_list)) {
 
 # List all the shapefiles in the directory (assuming each species has its own shapefile)
 species_files <- list.files(output_dir, pattern = "\\.shp$", full.names = TRUE)
+
+species_files
 
 # Extract species names from the filenames (you can adjust this depending on your naming conventions)
 species_names <- tools::file_path_sans_ext(basename(species_files))
