@@ -1,0 +1,12 @@
+name: ecocommons-marxan-integration-poc
+title: ecocommons-marxan-integration-poc
+username: xiangzhaomax
+account: xiangzhaomax
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 12806166
+bundleId: 9143635
+url: https://xiangzhaomax.shinyapps.io/ecocommons-marxan-integration-poc/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

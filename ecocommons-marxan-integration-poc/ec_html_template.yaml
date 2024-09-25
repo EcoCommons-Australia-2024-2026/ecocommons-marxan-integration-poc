@@ -1,0 +1,7 @@
+format:
+  html:
+    css: ec_html_template.css  # Reference to the custom CSS file for styling
+    toc: true             # Enable table of contents
+    title-block-style: none
+    toc-depth: 2          # Set the depth of the TOC (e.g., include up to h2 headers)
+    highlight-style: github  # Style for code highlighting
