@@ -8,7 +8,7 @@ First, in terminal, cd to the directory where you'd like to place this project.
 In your terminal, Clone the template repository to this directory
 
 ```
-   git clone https://github.com/EcoCommons-Australia-2024-2026/ecr-template.git
+   git clone https://github.com/EcoCommons-Australia-2024-2026/ecocommons-marxan-integration-poc
 ```
 
 In ecocommons-marxan-integration-poc/ecocommons-marxan-integration-poc/, you will find "ecocommons-marxan-integration-poc.qmd", this Quarto Markdown file contains the codes to:

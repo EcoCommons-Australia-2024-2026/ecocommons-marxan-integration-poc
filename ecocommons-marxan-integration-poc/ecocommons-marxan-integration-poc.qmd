@@ -39,6 +39,9 @@ Then we adjusted the probability distribution maps of these three species with t
 
 ```{r start}
 
+getwd()
+
+
 # setwd(“/replace_this_with_your_actual_directory/ecocommons-marxan-integration-poc”)
 
 ```
