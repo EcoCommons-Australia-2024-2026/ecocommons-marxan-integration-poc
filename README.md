@@ -19,5 +19,8 @@ In ecocommons-marxan-integration-poc/ecocommons-marxan-integration-poc/, you wil
 4. Turn the SDM rasters of probability to binary presence and absence shapefiles with user defined thresholds (range from 0 to the Maximum TSS)
 5. Plot the shapefiles of presence of examplar species. These shapefiles can be uploaded to the Marxan MaPP as features.
 
+**You might need to install/update some packages, including "shiny" for running markdown file.**
 
-
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/80e373cf-cd38-442a-a894-564660005e95" alt="Centered Image" width="400"/>
+</p>
