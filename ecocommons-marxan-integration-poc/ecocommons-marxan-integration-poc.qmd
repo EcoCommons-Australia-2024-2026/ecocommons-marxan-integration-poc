@@ -12,7 +12,7 @@ runtime: shiny
 
 Author: Zhao Xiang, EcoCommons
 
-Date: 2024-09-24
+Date: 2024-10-02
 
 ![](images/EC_section_break.png){fig-align="center"}
 
@@ -214,12 +214,6 @@ ggplot(combined_raster_df, aes(x = x, y = y, fill = value)) +  # Use the correct
 **4. We need to turn these SDMs to binary results (shapefies).**
 
 ```{r}
-# Load necessary libraries
-library(shiny)
-library(ggplot2)
-library(terra)   # For handling rasters
-library(sf)      # For handling shapefiles
-library(dplyr)
 
 # Define the folder paths where the rasters and CSV files are stored
 folder_path_rasters <- "qld_3species_Marxan/QLD_feature/"
@@ -254,7 +248,7 @@ species_csvs <- setNames(csv_files, species_names)
 
 # Define UI for the application
 ui <- fluidPage(
-  titlePanel("Interactive TSS-based Feature Subsetting for Multiple Species"),
+  titlePanel("Interactive TSS-based threshold for the probability of presence and absence of Species"),
   
   # Use a loop to create a row for each species
   lapply(species_names, function(species) {
@@ -270,7 +264,7 @@ ui <- fluidPage(
       ),
       
       column(4, 
-             plotOutput(paste0("plot_", species), width = "600px")
+             plotOutput(paste0("plot_", species), width = "400px")
       ),
       
       column(5, 
@@ -392,6 +386,7 @@ shinyApp(ui = ui, server = server)
 **5. Plot species SDM binary shapefile outputs for double check**
 
 ```{r ECR-shp-plot, warning = FALSE, message=FALSE, results='hide'}
+
 output_dir <- "qld_3species_Marxan/QLD_feature/Marxan_feature_input/"
 
 # List all the shapefiles in the directory (assuming each species has its own shapefile)
