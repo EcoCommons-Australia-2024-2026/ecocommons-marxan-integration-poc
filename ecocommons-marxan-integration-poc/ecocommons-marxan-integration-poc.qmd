@@ -39,14 +39,27 @@ Then we adjusted the probability distribution maps of these three species with t
 
 ```{r start}
 
-getwd()
+# setwd(“/replace_this_with_your_actual_directory/ecocommons-marxan-integration-poc”)
 
 ```
 
-Create a virtual environment to install and load all essential packages
+Activate the virtual environment "renv" to install and load all essential packages
 
 ```{r init-renv, message=FALSE}
-# install.packages("renv") # Uncomment this if you haven't installed renv
+
+# install "renv" package if not been installed
+if (!requireNamespace("renv", quietly = TRUE)) {
+  install.packages("renv")
+}
+
+if (!file.exists("renv/activate.R")) {
+   message("renv has not been initiated in this project. Initializing now...")
+   renv::init()  # This initializes renv if it's not set up
+} else {
+   source("renv/activate.R")  # This ensures the renv environment is activated
+   message("renv is activated.")
+}
+
 # Ensure renv is installed and initialized
 if (file.exists("renv.lock")) {
   renv::restore()
@@ -79,7 +92,6 @@ package.check <- lapply(
 
 
 Sys.setenv(PROJ_LIB = "/usr/local/Cellar/proj/9.5.0/share/proj")
-
 
 renv::snapshot()
 
