@@ -17,6 +17,12 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 10px;
 }
 
+/* Custom style for numbered sections */
+h1::before, h2::before, h3::before, h4::before, h5::before, h6::before {
+    color: #0FA996; /* Set your preferred color here */
+    font-weight: bold; /* Optionally set font weight or other styles */
+}
+
 h1 {
   font-size: 2.5em;
   margin-bottom: 20px;

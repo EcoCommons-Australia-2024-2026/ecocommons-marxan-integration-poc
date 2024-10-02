@@ -13,7 +13,8 @@ output_dir <- "qld_3species_Marxan/QLD_feature/Marxan_feature_input/"
 QLD_Unit <- "qld_3species_Marxan/QLD_plannningunits/cost-surface-template.shp"  #This cost-surface-template was prepared by the Marxan Mapp with a resolution of 189 Km2, which is the highest resolution Marxan Mapp can give at this scale.
 
 QLD_Unit  <- st_read(QLD_Unit)
-st_crs(QLD_Unit) <- 4326  # Example with WGS84 CRS
+
+st_crs(QLD_Unit)
 QLD_Unit  <- st_simplify(QLD_Unit , dTolerance = 0.01) 
 
 

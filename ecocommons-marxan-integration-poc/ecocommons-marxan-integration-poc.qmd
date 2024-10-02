@@ -4,7 +4,6 @@ format:
   html:
     embed-resources: true
     css: ec_html_template.css  # Path to your custom CSS
-    include-after-body: footer.html  # Include custom footer
 editor: visual
 runtime: shiny
 ---
@@ -14,6 +13,8 @@ runtime: shiny
 Author: Zhao Xiang, EcoCommons
 
 Date: 2024-09-24
+
+![](images/EC_section_break.png){fig-align="center"}
 
 ## Introduction
 
@@ -45,8 +46,13 @@ getwd()
 Create a virtual environment to install and load all essential packages
 
 ```{r init-renv, message=FALSE}
-# install.packages("renv") # install this package if you have not.
-renv::init()
+# install.packages("renv") # Uncomment this if you haven't installed renv
+# Ensure renv is installed and initialized
+if (file.exists("renv.lock")) {
+  renv::restore()
+} else {
+  message("No renv.lock file found in the current directory.")
+}
 
 ```
 
@@ -54,10 +60,11 @@ renv::init()
 
 ```{r Pack-install, message=FALSE}
 
-install.packages("sf")
+# Set CRAN mirror
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
 
 # First specify the packages of interest
-packages = c("sf", "terra", "ggplot2", "ggspatial", "raster", "dplyr", "shiny", "httpuv", "rmarkdown", "knitr", "jsonlite", "reticulate", "htmltools", "pryr")
+packages = c("shiny", "sf", "terra", "ggplot2", "ggspatial", "raster", "dplyr", "shiny", "httpuv", "rmarkdown", "knitr", "jsonlite", "reticulate", "htmltools", "pryr")
 
 # Now load or install&load all. This process will take a long time since we are using a virtual environment and install a lot of packages.
 package.check <- lapply(
@@ -70,8 +77,9 @@ package.check <- lapply(
   }
  )
 
-# You might need to link your renv to proj
-Sys.setenv(PROJ_LIB = "/usr/local/Cellar/proj/9.4.1/share/proj") # Update path if different
+
+Sys.setenv(PROJ_LIB = "/usr/local/Cellar/proj/9.5.0/share/proj")
+
 
 renv::snapshot()
 
@@ -81,31 +89,16 @@ renv::snapshot()
 
 ```{r Plan-units, message=FALSE, results='hide'}
 
-# Helper function to convert bytes to GB
-mem_in_gb <- function(memory_in_bytes) {
-  return(memory_in_bytes / (1024^3))  # Convert bytes to GB
-}
-
-# Record memory usage before reading the shapefile
-cat("Memory usage before reading shapefile: ", mem_in_gb(pryr::mem_used()), " GB\n")
-
-
 QLD_Unit <- "qld_3species_Marxan/QLD_plannningunits/cost-surface-template.shp"  #This cost-surface-template was prepared by the Marxan Mapp with a resolution of 189 Km2, which is the highest resolution Marxan Mapp can give at this scale.
 
 QLD_Unit  <- st_read(QLD_Unit)
-st_crs(QLD_Unit) <- 4326  # Example with WGS84 CRS
 QLD_Unit  <- st_simplify(QLD_Unit , dTolerance = 0.01) 
 
-# Record memory usage after reading the shapefile
-cat("Memory usage after reading shapefile: ", mem_in_gb(pryr::mem_used()), " GB\n")
 
 # Calculate the resolution since Marxan MaPP for visulization purpose
 areas <- st_area(QLD_Unit)
 areas_numeric <- as.numeric(areas)
 average_area <- mean(areas_numeric)
-
-# Record memory usage after calculating the resolution
-cat("Memory usage after calculating areas: ", mem_in_gb(pryr::mem_used()), " GB\n")
 
 # Convert to numeric
 average_area_km2 <- average_area / 1e6
@@ -208,7 +201,181 @@ ggplot(combined_raster_df, aes(x = x, y = y, fill = value)) +  # Use the correct
 
 **4. We need to turn these SDMs to binary results (shapefies).**
 
-<iframe src="https://xiangzhaomax.shinyapps.io/ecocommons-marxan-integration-poc/" width="100%" height="800px"></iframe>
+```{r}
+# Load necessary libraries
+library(shiny)
+library(ggplot2)
+library(terra)   # For handling rasters
+library(sf)      # For handling shapefiles
+library(dplyr)
+
+# Define the folder paths where the rasters and CSV files are stored
+folder_path_rasters <- "qld_3species_Marxan/QLD_feature/"
+folder_path_csvs <- "qld_3species_Marxan/model_evaluation/"
+output_dir <- "qld_3species_Marxan/QLD_feature/Marxan_feature_input/"
+
+QLD_Unit <- "qld_3species_Marxan/QLD_plannningunits/cost-surface-template.shp"  #This cost-surface-template was prepared by the Marxan Mapp with a resolution of 189 Km2, which is the highest resolution Marxan Mapp can give at this scale.
+
+QLD_Unit  <- st_read(QLD_Unit)
+QLD_Unit  <- st_simplify(QLD_Unit , dTolerance = 0.01) 
+
+
+# Get a list of all .tif files and CSV files in the folder
+raster_files <- list.files(path = folder_path_rasters, pattern = "\\.tif$", full.names = TRUE)
+csv_files <- list.files(path = folder_path_csvs, pattern = "\\.csv$", full.names = TRUE)
+
+# Extract the species names from the file names (removing the folder path and .tif/.csv extension)
+species_names <- tools::file_path_sans_ext(basename(raster_files))
+
+# Read all raster files in one go using lapply
+raster_list <- lapply(raster_files, rast)  # Use rast() from terra for reading rasters
+
+# Transform the raster CRS to match the vector CRS and apply masking in one step
+raster_list <- lapply(raster_list, function(r) {
+  r_transformed <- project(r, crs(vect(QLD_Unit)))
+  mask(r_transformed, vect(QLD_Unit))
+})
+
+# Prepare a named list of rasters
+species_rasters <- setNames(raster_list, species_names)
+species_csvs <- setNames(csv_files, species_names)
+
+# Define UI for the application
+ui <- fluidPage(
+  titlePanel("Interactive TSS-based Feature Subsetting for Multiple Species"),
+  
+  # Use a loop to create a row for each species
+  lapply(species_names, function(species) {
+    fluidRow(
+      column(3, 
+             h4(paste("Species:", species)),
+             sliderInput(paste0("tss_value_", species), 
+                         "Select TSS Value:", 
+                         min = 0, max = 1, value = 0.5, step = 0.01),
+             actionButton(paste0("run_analysis_", species), "Run Species Analysis"),
+             br(),
+             textOutput(paste0("tpr_tnr_", species))
+      ),
+      
+      column(4, 
+             plotOutput(paste0("plot_", species), width = "600px")
+      ),
+      
+      column(5, 
+             plotOutput(paste0("species_plot_", species))
+      )
+    )
+  })
+)
+
+# Define server logic
+server <- function(input, output, session) {
+  
+  selected_raster <- function(species) {
+    species_rasters[[species]]
+  }
+  
+  species_eval_data <- function(species) {
+    csv_path <- species_csvs[[species]]
+    
+    if (!file.exists(csv_path)) {
+      showNotification(paste("CSV file for", species, "not found!"), type = "error")
+      return(NULL)
+    }
+    
+    eval_data <- read.csv(csv_path)
+    
+    if (!all(c("tpr", "tnr", "tpv") %in% names(eval_data))) {
+      showNotification(paste("Required columns missing in CSV for", species), type = "error")
+      return(NULL)
+    }
+    
+    if (nrow(eval_data) == 0) {
+      showNotification(paste("No data found in CSV for", species), type = "error")
+      return(NULL)
+    }
+    
+    eval_data$tss <- round(eval_data$tpr + eval_data$tnr - 1, 3)
+    return(eval_data)
+  }
+  
+  lapply(species_names, function(species) {
+    eval_data <- species_eval_data(species)
+    
+    if (!is.null(eval_data)) {
+      min_tss <- min(eval_data$tss, na.rm = TRUE)
+      max_tss <- max(eval_data$tss, na.rm = TRUE)
+      
+      updateSliderInput(session, paste0("tss_value_", species), 
+                        min = min_tss, 
+                        max = max_tss, 
+                        value = max_tss,
+                        step = 0.01)
+    }
+    
+    observeEvent(input[[paste0("tss_value_", species)]], {
+      if (!is.null(eval_data)) {
+        row <- which.min(abs(eval_data$tss - input[[paste0("tss_value_", species)]]))
+        
+        tpr <- eval_data$tpr[row]
+        tnr <- eval_data$tnr[row]
+        
+        output[[paste0("tpr_tnr_", species)]] <- renderText({
+          paste0("TPR (Sensitivity): ", round(tpr, 3), 
+                 ", TNR (Specificity): ", round(tnr, 3))
+        })
+      }
+    })
+    
+    output[[paste0("plot_", species)]] <- renderPlot({
+      if (is.null(eval_data)) return(NULL)
+      
+      ggplot(eval_data, aes(x = tpv)) +
+        geom_line(aes(y = tpr, colour = "TPR"), linewidth = 1) +
+        geom_line(aes(y = tnr, colour = "TNR"), linewidth = 1) +
+        geom_line(aes(y = tss, colour = "TSS"), linewidth = 1) +
+        geom_vline(xintercept = eval_data$tpv[which.min(abs(eval_data$tss - input[[paste0("tss_value_", species)]]))],
+                   linetype = "dotted", color = "red", linewidth = 1) +
+        labs(title = paste("Sensitivity, Specificity, and TSS for", species),
+             x = "Threshold Probability Value",
+             y = "Value") +
+        scale_colour_manual(values = c("TPR" = "blue", "TNR" = "green", "TSS" = "red")) +
+        theme_minimal()
+    })
+    
+    observeEvent(input[[paste0("run_analysis_", species)]], {
+      species_shp <- process_species(selected_raster(species), QLD_Unit, species, output_dir, input[[paste0("tss_value_", species)]])
+      
+      output[[paste0("species_plot_", species)]] <- renderPlot({
+        ggplot() +
+          geom_sf(data = QLD_Unit, fill = NA, color = "grey") +
+          geom_sf(data = species_shp, aes(fill = feature), color = NA) +
+          scale_fill_viridis_c(option = "plasma") +
+          labs(title = paste("Species Distribution for", species),
+               x = "Longitude", y = "Latitude") +
+          theme_minimal()
+      })
+    })
+  })
+}
+
+process_species <- function(raster_data, planning_unit, species_name, output_dir, tss_threshold) {
+  raster_data_transformed <- project(raster_data, crs(vect(planning_unit)))
+  extracted_values <- extract(raster_data_transformed, vect(planning_unit), fun = mean, na.rm = TRUE)
+  names(planning_unit)[names(planning_unit) == "cost"] <- "feature"
+  planning_unit$feature <- extracted_values[, 2]
+  
+  QLD_species <- subset(planning_unit, feature >= tss_threshold)
+  shapefile_base <- file.path(output_dir, species_name)
+  st_write(QLD_species, paste0(shapefile_base, ".shp"), delete_layer = TRUE)
+  
+  return(QLD_species)
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+```
 
 **5. Plot species SDM binary shapefile outputs for double check**
 
@@ -301,3 +468,17 @@ print(head(presence_absence_df))
 ### Scenario 4: SDMs + Costs
 
 ![Costs and SDMs](qld_3species_Marxan/images/Cost_and_SDMs.png){fig-align="center"}
+
+![](images/EC_section_break.png){fig-align="center"}
+
+EcoCommons Australia partners with the Australian Research Data Commons (ARDC), which is supported by funding from the National Collaborative Research Infrastructure Strategy (NCRIS) [https://doi.org/10.47486/PL108. ](https://doi.org/10.47486/PL108)
+
+![](images/partners_logos.png)
+
+### How to Cite EcoCommons
+
+If you use EcoCommons in your research, please cite the platform as follows:
+
+> EcoCommons Australia 2024. *EcoCommons Australia – a collaborative commons for ecological and environmental modelling*, Queensland Cyber Infrastructure Foundation, Brisbane, Queensland. Available at: <https://data–explorer.app.ecocommons.org.au/> (Accessed: January 30, 2024). https://doi.org/10.47486/PL108
+
+You can download the citation file for EcoCommons Australia here: [Download the BibTeX file](references.bib)
