@@ -45,7 +45,7 @@ Then we adjusted the probability distribution maps of these three species with t
 
 Activate the virtual environment "renv" to install and load all essential packages
 
-```{r init-renv, message=FALSE}
+```{r init-renv, message=FALSE, results='hide'}
 
 # install "renv" package if not been installed
 if (!requireNamespace("renv", quietly = TRUE)) {
@@ -71,7 +71,7 @@ if (file.exists("renv.lock")) {
 
 **Install and load essential packages**
 
-```{r Pack-install, message=FALSE}
+```{r Pack-install, message=FALSE, results='hide'}
 
 # Set CRAN mirror
 options(repos = c(CRAN = "https://cran.rstudio.com/"))
