@@ -40,7 +40,7 @@ species_csvs <- setNames(csv_files, species_names)
 
 # Define UI for the application
 ui <- fluidPage(
-  titlePanel("Interactive TSS-based Feature Subsetting for Multiple Species"),
+  titlePanel("Interactive TSS-based threshold setting for probability of presence for multiple Species"),
   
   # Use a loop to create a row for each species
   lapply(species_names, function(species) {

@@ -216,7 +216,8 @@ ggplot(combined_raster_df, aes(x = x, y = y, fill = value)) +  # Use the correct
 
 **4. We need to turn these SDMs to binary results (shapefies).**
 
-```{r}
+```{r threshold, warning = FALSE, message=FALSE, results='hide'}
+#| eval: false
 
 # Define the folder paths where the rasters and CSV files are stored
 folder_path_rasters <- "qld_3species_Marxan/QLD_feature/"
