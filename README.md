@@ -19,6 +19,12 @@ In ecocommons-marxan-integration-poc/ecocommons-marxan-integration-poc/, you wil
 4. Turn the SDM rasters of probability to binary presence and absence shapefiles with user defined thresholds (range from 0 to the Maximum TSS)
 5. Plot the shapefiles of presence of examplar species. These shapefiles can be uploaded to the Marxan MaPP as features.
 
+# File list and description
+1. app.R and rsconnect folder organise the threshold shinyapp.
+2. ec_html_template.css is the template for html file.
+3. footer.html sets the format of footer for each html file.
+4. renv.lock and renv folder sets the renv for the Quarto Markdown.
+
 **You might need to install/update some packages, including "shiny" for running markdown file.**
 
 <p align="center">
